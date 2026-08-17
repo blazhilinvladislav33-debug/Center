@@ -131,6 +131,22 @@ jobs:
           echo "══════════════════════════════"
           echo "version=$VERSION" >> $GITHUB_OUTPUT
 
+      # Реліз створюємо ОДИН раз тут, чернеткою.
+      # Інакше Windows і macOS стартують одночасно і обидві намагаються
+      # створити той самий реліз — той, хто прийшов другим, отримує
+      # 422 "already_exists". Тепер обидві просто доливають файли
+      # у вже готову чернетку.
+      - name: Створити чернетку релізу
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "v${{ steps.calc.outputs.version }}" \
+            --draft \
+            --title "SVAROG v${{ steps.calc.outputs.version }}" \
+            --notes "Автоматична збірка. Файли зʼявляться, щойно завершаться Windows і macOS." \
+            --target "${GITHUB_SHA}"
+          echo "Чернетку v${{ steps.calc.outputs.version }} створено"
+
   # ─────────────────────────────────────────────────────────────────
   # Збірка й публікація
   # ─────────────────────────────────────────────────────────────────
@@ -153,6 +169,38 @@ jobs:
       - name: Підставити версію ${{ needs.version.outputs.version }}
         shell: bash
         run: npm version "${{ needs.version.outputs.version }}" --no-git-tag-version --allow-same-version
+
+      # ═══════════════════════════════════════════════════════════════
+      # Куди публікувати реліз.
+      #
+      # Раніше owner/repo були жорстко вписані в package.json і вказували
+      # на СТОРОННІЙ репозиторій. GITHUB_TOKEN має права тільки на той
+      # репозиторій, де йде збірка, тому GitHub відповідав:
+      #     403 "Resource not accessible by integration"
+      # Збірка проходила, а публікація падала.
+      #
+      # Тепер адреса береться з самого запуску — розʼїхатись не може.
+      # ═══════════════════════════════════════════════════════════════
+      - name: Вказати репозиторій для публікації
+        shell: bash
+        env:
+          REPO: ${{ github.repository }}
+        run: |
+          node -e "
+            const fs = require('fs');
+            const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+            const [owner, repo] = process.env.REPO.split('/');
+            pkg.build = pkg.build || {};
+            pkg.build.publish = {
+              provider: 'github',
+              owner: owner,
+              repo: repo,
+              releaseType: 'release'
+            };
+            pkg.repository = { type: 'git', url: 'https://github.com/' + process.env.REPO + '.git' };
+            fs.writeFileSync('package.json', JSON.stringify(pkg, null, 2) + '\n');
+            console.log('Публікую в: ' + owner + '/' + repo);
+          "
 
       - name: Залежності
         run: npm install
@@ -181,3 +229,30 @@ jobs:
             dist/*.yml
           retention-days: 5
           if-no-files-found: ignore
+
+  # ─────────────────────────────────────────────────────────────────
+  # Обидві збірки долили свої файли в чернетку — тепер публікуємо.
+  # Доти реліз не видно нікому, тож користувач не завантажить
+  # напівпорожній реліз без .dmg чи без .exe.
+  # ─────────────────────────────────────────────────────────────────
+  publish:
+    needs: [version, release]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Опублікувати реліз
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ needs.version.outputs.version }}
+        run: |
+          set -e
+          FILES=$(gh release view "v$VERSION" --json assets --jq '.assets | length')
+          echo "Файлів у релізі: $FILES"
+          if [ "$FILES" -eq 0 ]; then
+            echo "::error::Реліз порожній — збірки нічого не залили. Не публікую."
+            exit 1
+          fi
+          gh release edit "v$VERSION" --draft=false --latest
+          echo "✅ Реліз v$VERSION опубліковано"
+          gh release view "v$VERSION" --json assets --jq '.assets[].name'
