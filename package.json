@@ -1,6 +1,6 @@
 {
   "name": "svarog-center",
-  "version": "3.7.0",
+  "version": "3.6.0",
   "description": "SVAROG TEAM Command Center — замовлення, склад, фінанси, команда, доставка, аналітика",
   "main": "main.js",
   "scripts": {
@@ -40,9 +40,6 @@
     },
     "publish": {
       "provider": "github",
-      "owner": "blazhilinvladislav33-debug",
-      "repo": "Svarog-Center",
-      "private": false,
       "releaseType": "release"
     },
     "win": {
