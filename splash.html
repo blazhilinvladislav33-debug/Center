@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <title>Запуск...</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap');
+
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: rgba(10, 10, 12, 0.95);
+            color: #798554;
+            font-family: 'Share Tech Mono', monospace;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            overflow: hidden;
+            border: 2px solid #798554;
+            border-radius: 12px;
+            box-shadow: 0 0 30px rgba(121, 133, 84, 0.4);
+        }
+
+        .logo {
+            width: 100px;
+            filter: drop-shadow(0 0 10px rgba(121, 133, 84, 0.5));
+            margin-bottom: 20px;
+        }
+
+        h1 {
+            font-size: 1.5rem;
+            margin: 0 0 5px 0;
+            color: #ffffff;
+            letter-spacing: 2px;
+        }
+
+        .subtitle {
+            font-size: 0.8rem;
+            color: #888;
+            margin-bottom: 30px;
+            letter-spacing: 1px;
+        }
+
+        .progress-container {
+            width: 80%;
+            background-color: rgba(255, 255, 255, 0.05);
+            border: 1px solid #798554;
+            border-radius: 4px;
+            padding: 3px;
+            margin-bottom: 10px;
+            position: relative;
+        }
+
+        .progress-bar {
+            height: 15px;
+            background-color: #798554;
+            width: 100%; /* Для анімації під час розробки */
+            border-radius: 2px;
+            transition: width 0.3s;
+            box-shadow: 0 0 10px rgba(121, 133, 84, 0.6);
+            /* Анімація радара (смужок) */
+            background-image: linear-gradient( 45deg, rgba(255, 255, 255, 0.15) 25%, transparent 25%, transparent 50%, rgba(255, 255, 255, 0.15) 50%, rgba(255, 255, 255, 0.15) 75%, transparent 75%, transparent );
+            background-size: 1rem 1rem;
+            animation: moveStripes 1s linear infinite;
+        }
+
+        @keyframes moveStripes {
+            0% {
+                background-position: 1rem 0;
+            }
+
+            100% {
+                background-position: 0 0;
+            }
+        }
+
+        .status-text {
+            font-size: 0.85rem;
+            color: #00ffcc;
+            display: flex;
+            justify-content: space-between;
+            width: 80%;
+        }
+
+        /* Ефект "глічу" для сканера */
+        .scan-line {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 2px;
+            background: rgba(121, 133, 84, 0.5);
+            animation: scan 2s linear infinite;
+        }
+
+        @keyframes scan {
+            0% {
+                top: 0;
+            }
+
+            100% {
+                top: 100%;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="scan-line"></div>
+    <img src="logo.png" alt="Logo" class="logo">
+    <h1>SVAROG COMMAND CENTER</h1>
+    <div class="subtitle">SECURE CONNECTION INITIATED...</div>
+
+    <div class="progress-container">
+        <div class="progress-bar" id="p-bar"></div>
+    </div>
+
+    <div class="status-text">
+        <span id="status-message">ПЕРЕВІРКА ОНОВЛЕНЬ...</span>
+        <span id="status-percent"></span>
+    </div>
+
+    <script>
+        const { ipcRenderer } = require('electron');
+
+        // Отримуємо дані від main.js, якщо є оновлення
+        ipcRenderer.on('update-progress', (event, data) => {
+            document.getElementById('status-message').innerText = `ЗАВАНТАЖЕННЯ: ${data.speed}`;
+            document.getElementById('status-percent').innerText = `${data.percent}%`;
+            document.getElementById('p-bar').style.width = `${data.percent}%`;
+        });
+    </script>
+</body>
+</html>

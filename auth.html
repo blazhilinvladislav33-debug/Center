@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <title>SVAROG | Terminal Access</title>
+
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
+
+    <script>
+        // Твій конфіг Firebase
+        const firebaseConfig = {
+            apiKey: "AIzaSyAz5vZlnI7XwGhSXlKkX3DNAL13ECNegNk",
+            authDomain: "svarog-team.firebaseapp.com",
+            projectId: "svarog-team",
+            storageBucket: "svarog-team.firebasestorage.app",
+            messagingSenderId: "311449325528",
+            appId: "1:311449325528:web:b254c6aed4fea56fe96cad"
+        };
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.firestore();
+        const auth = firebase.auth();
+    </script>
+
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;800&family=Share+Tech+Mono&display=swap');
+
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #0a0a0c;
+            background-image: radial-gradient(circle at center, rgba(121, 133, 84, 0.15) 0%, transparent 70%);
+            color: #ffffff;
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            overflow: hidden;
+            -webkit-user-select: none;
+        }
+
+        /* Дозволяємо перетягувати вікно за верхню частину (оскільки ми вимкнули стандартні рамки Windows) */
+        .drag-bar {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 40px;
+            -webkit-app-region: drag;
+            z-index: 9999;
+        }
+
+        .auth-container {
+            background: rgba(20, 20, 25, 0.8);
+            backdrop-filter: blur(15px);
+            border: 1px solid rgba(121, 133, 84, 0.3);
+            border-radius: 16px;
+            padding: 40px;
+            width: 100%;
+            max-width: 400px;
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5), 0 0 20px rgba(121, 133, 84, 0.1);
+            position: relative;
+            z-index: 10;
+        }
+
+        .logo-box {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+            .logo-box img {
+                width: 80px;
+                filter: drop-shadow(0 0 10px rgba(121, 133, 84, 0.5));
+            }
+
+            .logo-box h2 {
+                margin: 10px 0 0;
+                font-weight: 800;
+                letter-spacing: 1px;
+                color: #798554;
+            }
+
+            .logo-box p {
+                margin: 5px 0 0;
+                font-size: 0.8rem;
+                color: #888;
+                text-transform: uppercase;
+                letter-spacing: 2px;
+            }
+
+        .tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 25px;
+        }
+
+        .tab-btn {
+            flex: 1;
+            background: rgba(0,0,0,0.4);
+            border: 1px solid rgba(255,255,255,0.1);
+            color: #888;
+            padding: 10px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 0.9rem;
+            transition: 0.3s;
+        }
+
+            .tab-btn.active {
+                background: #798554;
+                color: #121212;
+                border-color: #798554;
+            }
+
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        .form-input {
+            width: 100%;
+            padding: 12px 15px;
+            background: rgba(0, 0, 0, 0.5);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+            color: #fff;
+            outline: none;
+            font-size: 0.95rem;
+            transition: 0.3s;
+            box-sizing: border-box;
+        }
+
+            .form-input:focus {
+                border-color: #798554;
+                box-shadow: 0 0 10px rgba(121, 133, 84, 0.2);
+            }
+
+        .submit-btn {
+            width: 100%;
+            padding: 14px;
+            background: #798554;
+            color: #121212;
+            border: none;
+            border-radius: 8px;
+            font-weight: 800;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: 0.3s;
+            margin-top: 10px;
+            text-transform: uppercase;
+        }
+
+            .submit-btn:hover:not(:disabled) {
+                filter: brightness(1.1);
+                transform: translateY(-2px);
+                box-shadow: 0 5px 15px rgba(121, 133, 84, 0.3);
+            }
+
+            .submit-btn:disabled {
+                background: #444;
+                color: #888;
+                cursor: not-allowed;
+                transform: none;
+                box-shadow: none;
+            }
+
+        .msg-box {
+            margin-top: 15px;
+            font-size: 0.85rem;
+            text-align: center;
+            font-weight: bold;
+            min-height: 20px;
+        }
+
+        .msg-error {
+            color: #ff4a4a;
+        }
+
+        .msg-success {
+            color: #00ffcc;
+        }
+
+        .msg-warning {
+            color: #ffaa00;
+        }
+    </style>
+</head>
+<body>
+    <div class="drag-bar"></div>
+
+    <div class="auth-container">
+        <div class="logo-box">
+            <img src="logo.png" alt="SVAROG">
+            <h2>SECURE TERMINAL</h2>
+            <p>Svarog Command Center</p>
+        </div>
+
+        <div class="tabs">
+            <button class="tab-btn active" id="tab-login" onclick="switchMode('login')">АВТОРИЗАЦІЯ</button>
+            <button class="tab-btn" id="tab-register" onclick="switchMode('register')">ЗАПИТ ДОСТУПУ</button>
+        </div>
+
+        <!-- Форма входу -->
+        <form id="login-form" onsubmit="handleLogin(event)">
+            <div class="form-group">
+                <input type="email" id="login-email" class="form-input" placeholder="Електронна пошта" required>
+            </div>
+            <div class="form-group">
+                <input type="password" id="login-password" class="form-input" placeholder="Пароль доступу" required>
+            </div>
+            <button type="submit" class="submit-btn" id="btn-login">УВІЙТИ В СИСТЕМУ</button>
+        </form>
+
+        <!-- Форма реєстрації (Запит до Суперадміна) -->
+        <form id="register-form" style="display: none;" onsubmit="handleRegisterRequest(event)">
+            <div class="form-group">
+                <input type="text" id="reg-name" class="form-input" placeholder="Ваше ПІБ / Позивний" required>
+            </div>
+            <div class="form-group">
+                <input type="email" id="reg-email" class="form-input" placeholder="Електронна пошта" required>
+            </div>
+            <div class="form-group">
+                <input type="password" id="reg-password" class="form-input" placeholder="Придумайте пароль" minlength="6" required>
+            </div>
+            <button type="submit" class="submit-btn" id="btn-register">ВІДПРАВИТИ ЗАПИТ</button>
+        </form>
+
+        <div id="status-message" class="msg-box"></div>
+    </div>
+
+    <script>
+        function switchMode(mode) {
+            document.getElementById('login-form').style.display = mode === 'login' ? 'block' : 'none';
+            document.getElementById('register-form').style.display = mode === 'register' ? 'block' : 'none';
+            document.getElementById('tab-login').classList.toggle('active', mode === 'login');
+            document.getElementById('tab-register').classList.toggle('active', mode === 'register');
+            document.getElementById('status-message').innerText = "";
+        }
+
+        function showMessage(text, type) {
+            const msgBox = document.getElementById('status-message');
+            msgBox.innerText = text;
+            msgBox.className = `msg-box msg-${type}`;
+        }
+
+        // ЛОГІКА АВТОРИЗАЦІЇ
+        async function handleLogin(e) {
+            e.preventDefault();
+            const email = document.getElementById('login-email').value.trim().toLowerCase();
+            const pass = document.getElementById('login-password').value.trim();
+            const btn = document.getElementById('btn-login');
+
+            btn.disabled = true;
+            btn.innerText = "ПЕРЕВІРКА...";
+            showMessage("", "error");
+
+            try {
+                // 1. Пробуємо зайти через Firebase Auth
+                await auth.signInWithEmailAndPassword(email, pass);
+
+                // 2. Перевіряємо, чи є у користувача права в базі (колекція admins)
+                // Суперадміну даємо доступ без перевірок
+                if (email === 'svarogteam35@gmail.com') {
+                    window.location.href = 'admin.html'; // Відкриваємо адмінку
+                    return;
+                }
+
+                const docRef = await db.collection("admins").doc(email).get();
+                if (docRef.exists) {
+                    window.location.href = 'admin.html'; // Доступ дозволено, переходимо в панель
+                } else {
+                    // Якщо користувач зареєстрований, але суперадмін ще не дав йому роль
+                    await auth.signOut();
+                    showMessage("Доступ обмежено. Очікуйте підтвердження Суперадміністратора.", "warning");
+                }
+            } catch (error) {
+                console.error(error);
+                if (error.code === 'auth/wrong-password' || error.code === 'auth/user-not-found') {
+                    showMessage("Невірний логін або пароль.", "error");
+                } else {
+                    showMessage("Помилка: " + error.message, "error");
+                }
+            } finally {
+                btn.disabled = false;
+                btn.innerText = "УВІЙТИ В СИСТЕМУ";
+            }
+        }
+
+        // ЛОГІКА ЗАПИТУ НА РЕЄСТРАЦІЮ
+        async function handleRegisterRequest(e) {
+            e.preventDefault();
+            const name = document.getElementById('reg-name').value.trim();
+            const email = document.getElementById('reg-email').value.trim().toLowerCase();
+            const pass = document.getElementById('reg-password').value.trim();
+            const btn = document.getElementById('btn-register');
+
+            btn.disabled = true;
+            btn.innerText = "ВІДПРАВКА...";
+
+            try {
+                // 1. Створюємо акаунт в системі
+                await auth.createUserWithEmailAndPassword(email, pass);
+
+                // 2. Додаємо запит в колекцію admin_requests для суперадміна
+                await db.collection("admin_requests").doc(email).set({
+                    name: name,
+                    email: email,
+                    status: "pending", // Статус: В очікуванні
+                    timestamp: firebase.firestore.FieldValue.serverTimestamp()
+                });
+
+                // 3. Одразу розлогінюємо його, щоб він не міг увійти без дозволу
+                await auth.signOut();
+
+                document.getElementById('register-form').reset();
+                showMessage("Запит відправлено! Очікуйте підтвердження від команди.", "success");
+
+                // Через 3 секунди перекидаємо назад на вікно входу
+                setTimeout(() => switchMode('login'), 3000);
+
+            } catch (error) {
+                console.error(error);
+                if (error.code === 'auth/email-already-in-use') {
+                    showMessage("Ця пошта вже зареєстрована. Спробуйте увійти.", "error");
+                } else {
+                    showMessage("Помилка: " + error.message, "error");
+                }
+            } finally {
+                btn.disabled = false;
+                btn.innerText = "ВІДПРАВИТИ ЗАПИТ";
+            }
+        }
+    </script>
+</body>
+</html>
