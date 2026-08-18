@@ -1395,7 +1395,16 @@
 
                     <div class="sv-panel">
                         <h3 class="sv-panel-title">Підписи статусів</h3>
-                        <p class="sv-hint">Один список на всі три системи. Саме через окремі копії клієнти колись отримували «Ваше замовлення accepted».</p>
+                        <p class="sv-hint">Це те, що <b>бачить клієнт</b> замість технічного коду — на сайті, у боті та в листах.
+                        Один список на всі три системи: змінили тут — змінилось усюди.</p>
+                        <div class="mg-status-legend">
+                            <span><b>Код</b> — технічний, не змінюється</span>
+                            <span><b>Значок</b> — емодзі перед назвою</span>
+                            <span><b>Назва</b> — те, що читає клієнт</span>
+                            <span><b>Пояснення</b> — рядок під назвою, необовʼязково</span>
+                        </div>
+                        <p class="sv-hint">Поля вже заповнені готовими підписами. Міняйте, тільки якщо хочете інші формулювання —
+                        наприклад «Відправлено» на «Вже їде до вас».</p>
                         <div id="mg-statuses"></div>
                     </div>
                 </div>
@@ -4168,6 +4177,9 @@ textarea.sv-input{resize:vertical;line-height:1.5;width:100%}
 .sv-alert-item:hover{background:rgba(255,255,255,.06)}
 
 /* ═══ Керування ═══ */
+.mg-status-legend{display:flex;gap:16px;flex-wrap:wrap;font-size:.76rem;color:#8a8f98;
+    margin:10px 0 12px;padding:8px 11px;background:rgba(255,255,255,.03);border-radius:8px}
+
 .mg-review{display:flex;gap:12px;background:rgba(255,255,255,.04);border-radius:10px;padding:12px;margin-bottom:10px}
 .mg-review-photo{width:84px;height:84px;object-fit:cover;border-radius:8px;cursor:pointer;flex-shrink:0}
 .mg-review-body{flex:1;min-width:0}
