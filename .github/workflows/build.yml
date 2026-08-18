@@ -120,10 +120,22 @@ jobs:
             echo "Піднімаю ($BUMP): $LATEST → $VERSION"
           fi
 
-          # Захист: такий реліз уже існує?
+          # Чи існує вже такий реліз?
+          #
+          # Розрізняємо два випадки. ОПУБЛІКОВАНИЙ реліз перезаписувати
+          # не можна — люди могли його вже завантажити. А от ЧЕРНЕТКА
+          # лишається після невдалої збірки (наприклад, обірвалось
+          # завантаження Electron), і зупинятись через неї безглуздо:
+          # саме її ми й хочемо доповнити при повторі.
           if gh release view "v$VERSION" >/dev/null 2>&1; then
-            echo "::error::Реліз v$VERSION вже існує. Вкажіть іншу версію."
-            exit 1
+            IS_DRAFT=$(gh release view "v$VERSION" --json isDraft --jq '.isDraft')
+            if [ "$IS_DRAFT" = "true" ]; then
+              echo "Чернетка v$VERSION уже є — доповнюємо її, а не створюємо нову"
+              echo "reuse=yes" >> $GITHUB_OUTPUT
+            else
+              echo "::error::Реліз v$VERSION уже опубліковано. Вкажіть іншу версію."
+              exit 1
+            fi
           fi
 
           echo "══════════════════════════════"
@@ -137,6 +149,7 @@ jobs:
       # 422 "already_exists". Тепер обидві просто доливають файли
       # у вже готову чернетку.
       - name: Створити чернетку релізу
+        if: steps.calc.outputs.reuse != 'yes'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -164,6 +177,27 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
+
+      # ═══════════════════════════════════════════════════════════════
+      # Кеш Electron.
+      #
+      # electron-builder щоразу тягне ~102 МБ з CDN GitHub. Саме на
+      # цьому завантаженні збірка й обірвалась: віддалений бік закрив
+      # зʼєднання. З кешем повторні збірки взагалі нічого не качають,
+      # тож і рватись нічому.
+      # ═══════════════════════════════════════════════════════════════
+      - name: Кеш Electron
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/electron
+            ~/.cache/electron-builder
+            ~/Library/Caches/electron
+            ~/Library/Caches/electron-builder
+            ~\AppData\Local\electron\Cache
+            ~\AppData\Local\electron-builder\Cache
+          key: electron-${{ runner.os }}-26.6.10
+          restore-keys: electron-${{ runner.os }}-
 
       # electron-builder бере версію саме з package.json
       - name: Підставити версію ${{ needs.version.outputs.version }}
@@ -205,15 +239,41 @@ jobs:
       - name: Залежності
         run: npm install
 
+      # Три спроби з паузою. Обрив завантаження — річ випадкова,
+      # і валити через нього всю збірку безглуздо.
       - name: Збірка Windows
         if: matrix.os == 'windows-latest'
-        run: npm run dist:win
+        shell: bash
+        run: |
+          for i in 1 2 3; do
+            echo "── спроба $i з 3 ──"
+            if npm run dist:win; then
+              echo "✅ готово з $i спроби"
+              exit 0
+            fi
+            echo "спроба $i не вдалась, чекаю 20 секунд"
+            sleep 20
+          done
+          echo "::error::Три спроби поспіль не вдались — це вже не випадковий обрив"
+          exit 1
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Збірка macOS
         if: matrix.os == 'macos-latest'
-        run: npm run dist:mac
+        shell: bash
+        run: |
+          for i in 1 2 3; do
+            echo "── спроба $i з 3 ──"
+            if npm run dist:mac; then
+              echo "✅ готово з $i спроби"
+              exit 0
+            fi
+            echo "спроба $i не вдалась, чекаю 20 секунд"
+            sleep 20
+          done
+          echo "::error::Три спроби поспіль не вдались — це вже не випадковий обрив"
+          exit 1
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CSC_IDENTITY_AUTO_DISCOVERY: false
