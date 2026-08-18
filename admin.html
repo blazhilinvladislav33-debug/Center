@@ -1382,6 +1382,20 @@
                     </div>
 
                     <div class="sv-panel">
+                        <h3 class="sv-panel-title">Персональна знижка</h3>
+                        <p class="sv-hint">Код прив'язується до телефону — переслати друзям не вийде.
+                        Клієнт побачить його сам, написавши боту <code>/promo</code>.
+                        Швидший шлях — кнопка 🎁 прямо в картці замовлення.</p>
+                        <div class="sv-toolbar">
+                            <input type="tel" id="mg-promo-phone" class="sv-input" placeholder="Телефон клієнта" style="max-width:200px">
+                            <input type="text" id="mg-promo-name" class="sv-input" placeholder="Ім'я (для назви коду)" style="max-width:200px">
+                            <input type="number" id="mg-promo-percent" class="sv-input" placeholder="%" value="10" min="1" max="90" style="max-width:90px">
+                            <input type="number" id="mg-promo-days" class="sv-input" placeholder="днів" value="60" min="1" style="max-width:110px">
+                            <button class="btn-primary" onclick="SvarogManage.issuePromoByPhone()">🎁 Видати</button>
+                        </div>
+                    </div>
+
+                    <div class="sv-panel">
                         <h3 class="sv-panel-title">Замовлення вручну</h3>
                         <p class="sv-hint">Телефоном, з виставки, від знайомого. Отримає такий самий короткий номер.</p>
                         <div class="sv-toolbar">
