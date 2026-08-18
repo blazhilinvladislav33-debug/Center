@@ -234,6 +234,25 @@
 
   var STATUS_CODES = ['new', 'on_review', 'accepted', 'sent', 'delivered', 'cancelled', 'archived'];
 
+  // Значення за замовчуванням.
+  //
+  // ⚠️ Раніше вони бралися з global.SV_STATUS_TEXT — а це const усередині
+  // головного скрипта admin.html, і властивістю window він НЕ стає.
+  // Модуль отримував порожнечу й підставляв у поля самі коди: замість
+  // «Прийнято» в редакторі стояло «accepted». Та сама пастка з const,
+  // на яку я вже наступав з globalOrdersData.
+  //
+  // Ці значення збігаються з вбудованими в боті й на сайті.
+  var DEFAULT_STATUSES = {
+    'new':       ['🆕', 'Нове',         'Ми отримали замовлення і скоро підтвердимо.'],
+    'on_review': ['👀', 'На перевірці', 'Менеджер опрацьовує ваше замовлення.'],
+    'accepted':  ['✅', 'Прийнято',     'Замовлення прийнято в роботу. Готуємо до відправки.'],
+    'sent':      ['📦', 'Відправлено',  'Посилка вже в дорозі.'],
+    'delivered': ['🎉', 'Доставлено',   'Замовлення отримано. Дякуємо!'],
+    'cancelled': ['❌', 'Скасовано',    'Замовлення скасовано.'],
+    'archived':  ['🗄', 'В архіві',     'Замовлення перенесено в архів.']
+  };
+
   function loadStatuses() {
     var d = db(); if (!d) return;
     d.collection('config').doc('statuses').get().then(function (doc) {
@@ -247,12 +266,12 @@
   function renderStatuses(map) {
     var el = document.getElementById('mg-statuses');
     if (!el) return;
-    var base = global.SV_STATUS_TEXT || {};
+    var base = global.SV_STATUS_TEXT || DEFAULT_STATUSES;
     el.innerHTML = STATUS_CODES.map(function (code) {
       var cur = map[code] || {};
-      var fallback = base[code] || ['📋', code, ''];
+      var fallback = base[code] || DEFAULT_STATUSES[code] || ['📋', code, ''];
       return '<div class="mg-status-row">' +
-        '<code style="min-width:92px">' + code + '</code>' +
+        '<code style="min-width:92px" title="технічний код — не змінюється">' + code + '</code>' +
         '<input class="sv-input" style="max-width:60px" id="st-emoji-' + code + '" value="' + esc(cur.emoji || fallback[0]) + '">' +
         '<input class="sv-input" style="max-width:170px" id="st-ua-' + code + '" value="' + esc(cur.ua || fallback[1]) + '">' +
         '<input class="sv-input" id="st-hint-' + code + '" placeholder="пояснення для клієнта" value="' + esc(cur.hint || fallback[2]) + '">' +
