@@ -593,6 +593,16 @@
         box.innerHTML += '<div class="sv-hint">З кабінету: ' + bits.join(' · ') + '</div>';
       }
 
+      // Кнопка «видати знижку» — тільки для доведених до кінця замовлень
+      if (['delivered', 'sent', 'accepted'].indexOf(o.status) !== -1) {
+        box.innerHTML += o.personalPromo
+          ? '<div class="sv-hint">🎁 Персональна знижка вже видана: <code>' +
+            esc(o.personalPromo) + '</code></div>'
+          : '<div class="mg-plan-row"><button class="sv-mini" ' +
+            'onclick="SvarogManage.issuePersonalPromo(\'' + esc(o.id) + '\')">' +
+            '🎁 Видати знижку на наступне замовлення</button></div>';
+      }
+
       var planned = o.plannedShipDate || '';
       box.innerHTML += '<div class="mg-plan-row"><span class="sv-hint">Планова відправка:</span>' +
         '<input type="date" class="sv-input" style="max-width:170px" value="' + esc(planned) + '" ' +
@@ -619,6 +629,70 @@
     };
     wrapped.__mgWrapped = true;
     global.renderOrdersList = wrapped;
+  }
+
+  // ═══════════════ 9. ПЕРСОНАЛЬНА ЗНИЖКА КЛІЄНТУ ═══════════════
+  //
+  // Класичний сценарій: людина зробила перше замовлення — видаємо їй
+  // знижку на наступне. Код прив'язується до її телефону полем
+  // assignedPhone, тому переслати його друзям не вийде: на касі
+  // звіряється номер.
+  //
+  // Бот показує такий код тільки цій людині — команда /promo більше
+  // не вивалює всі знижки підряд.
+
+  var PROMO_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+
+  function makePromoCode(name) {
+    // Читабельний префікс з імені, щоб у списку було видно, чий це код
+    var base = (name || '').trim().toUpperCase()
+      .replace(/[^A-ZА-ЯЄІЇҐ]/g, '').slice(0, 4);
+    var tail = '';
+    var rnd = new Uint32Array(4);
+    (global.crypto || global.msCrypto).getRandomValues(rnd);
+    for (var i = 0; i < 4; i++) tail += PROMO_ALPHABET[rnd[i] % PROMO_ALPHABET.length];
+    return (base ? base + '-' : 'SV-') + tail;
+  }
+
+  function issuePersonalPromo(orderId) {
+    var d = db(); if (!d) return;
+    var o = orders().filter(function (x) { return x.id === orderId; })[0];
+    if (!o) { toast('Замовлення не знайдено', 'error'); return; }
+
+    var phone = phoneKey(o.phone || o.customerPhone);
+    if (!phone) { toast('У замовленні немає телефону — код нема до чого привʼязати', 'error'); return; }
+
+    var pct = parseInt(prompt('Знижка у відсотках для наступного замовлення:', '10'), 10);
+    if (!pct || pct < 1 || pct > 90) {
+      if (pct !== undefined) toast('Знижка має бути від 1 до 90 %', 'error');
+      return;
+    }
+
+    var days = parseInt(prompt('Скільки днів діятиме код?', '60'), 10) || 60;
+    var code = makePromoCode(o.name || o.customerName);
+
+    d.collection('promocodes').doc(code).set({
+      active: true,
+      discount: pct,
+      assignedPhone: phone,              // ← через це поле код іменний
+      assignedName: o.name || o.customerName || '',
+      isPublic: false,                   // у загальний список не потрапить
+      note: 'Персональна знижка за замовлення ' + orderId,
+      forOrder: orderId,
+      expiresAt: Date.now() + days * 86400000,
+      createdAt: Date.now(),
+      author: me()
+    }).then(function () {
+      // Позначаємо саме замовлення, щоб не видати другу знижку за те саме
+      d.collection('orders').doc(orderId).update({ personalPromo: code }).catch(function () {});
+      toast('Код ' + code + ' видано на ' + pct + '%');
+      log('shop', 'Видав персональну знижку ' + code + ' (' + pct + '%) клієнту ' + phone);
+      alert('Код: ' + code + '\n\nЗнижка ' + pct + '% на ' + days + ' днів.\n' +
+            'Спрацює тільки з номером ' + (o.phone || o.customerPhone) + '.\n\n' +
+            'Клієнт побачить його сам, написавши боту /promo.');
+    }).catch(function (e) {
+      toast('Не вдалося: ' + (e.message || e.code), 'error');
+    });
   }
 
   // ═══════════════ ІНІЦІАЛІЗАЦІЯ ═══════════════
@@ -668,6 +742,8 @@
     renderAttention: renderAttention,
     askNotifyPermission: askNotifyPermission,
     setPlanned: setPlanned,
+    issuePersonalPromo: issuePersonalPromo,
+    makePromoCode: makePromoCode,
     pendingReviews: pendingReviews,
     _manualItems: function () { return manualItems; }
   };
