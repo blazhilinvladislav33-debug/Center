@@ -643,56 +643,113 @@
 
   var PROMO_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 
+  // Хвіст коду — 6 символів, а не 4.
+  //
+  // Чому це важливо: код є ІДЕНТИФІКАТОРОМ документа, і запис іде через
+  // .doc(code).set(). Збіг двох кодів означав би, що нова знижка мовчки
+  // затирає чужу. З чотирма символами (32⁴ ≈ 1 млн) на 500 видачах збіг
+  // стається приблизно у 12% випадків — тест його й спіймав.
+  // Шість символів дають 32⁶ ≈ 1 млрд, і збіг стає малоймовірним.
+  // Плюс нижче стоїть пряма перевірка «чи вільний код».
   function makePromoCode(name) {
-    // Читабельний префікс з імені, щоб у списку було видно, чий це код
     var base = (name || '').trim().toUpperCase()
       .replace(/[^A-ZА-ЯЄІЇҐ]/g, '').slice(0, 4);
     var tail = '';
-    var rnd = new Uint32Array(4);
+    var rnd = new Uint32Array(6);
     (global.crypto || global.msCrypto).getRandomValues(rnd);
-    for (var i = 0; i < 4; i++) tail += PROMO_ALPHABET[rnd[i] % PROMO_ALPHABET.length];
+    for (var i = 0; i < 6; i++) tail += PROMO_ALPHABET[rnd[i] % PROMO_ALPHABET.length];
     return (base ? base + '-' : 'SV-') + tail;
   }
 
-  function issuePersonalPromo(orderId) {
-    var d = db(); if (!d) return;
-    var o = orders().filter(function (x) { return x.id === orderId; })[0];
-    if (!o) { toast('Замовлення не знайдено', 'error'); return; }
+  // Ядро видачі. Обидва шляхи — з картки замовлення і з форми за
+  // телефоном — ведуть сюди, щоб правила створення коду були одні.
+  function createPersonalPromo(opts) {
+    var d = db(); if (!d) return Promise.reject(new Error('немає бази'));
 
-    var phone = phoneKey(o.phone || o.customerPhone);
-    if (!phone) { toast('У замовленні немає телефону — код нема до чого привʼязати', 'error'); return; }
-
-    var pct = parseInt(prompt('Знижка у відсотках для наступного замовлення:', '10'), 10);
-    if (!pct || pct < 1 || pct > 90) {
-      if (pct !== undefined) toast('Знижка має бути від 1 до 90 %', 'error');
-      return;
+    // Рівно девʼять цифр. phoneKey() лише обрізає задовгі номери й
+    // спокійно пропускав «099» — тоді код прив'язувався до сміття
+    // і не спрацював би в жодного клієнта.
+    var phone = phoneKey(opts.phone);
+    if (phone.length !== 9) {
+      toast('Вкажи повний номер телефону, напр. 0991112233', 'error');
+      return Promise.reject();
     }
 
-    var days = parseInt(prompt('Скільки днів діятиме код?', '60'), 10) || 60;
-    var code = makePromoCode(o.name || o.customerName);
+    var pct = parseInt(opts.percent, 10);
+    if (!pct || pct < 1 || pct > 90) { toast('Знижка має бути від 1 до 90 %', 'error'); return Promise.reject(); }
 
-    d.collection('promocodes').doc(code).set({
+    var days = parseInt(opts.days, 10) || 60;
+    var code = makePromoCode(opts.name);
+
+    var payload = {
       active: true,
       discount: pct,
-      assignedPhone: phone,              // ← через це поле код іменний
-      assignedName: o.name || o.customerName || '',
-      isPublic: false,                   // у загальний список не потрапить
-      note: 'Персональна знижка за замовлення ' + orderId,
-      forOrder: orderId,
+      assignedPhone: phone,
+      assignedName: opts.name || '',
+      isPublic: false,
+      note: opts.note || 'Персональна знижка',
       expiresAt: Date.now() + days * 86400000,
       createdAt: Date.now(),
       author: me()
+    };
+    if (opts.orderId) payload.forOrder = opts.orderId;
+
+    // Перед записом переконуємось, що код вільний: .set() за наявним
+    // ідентифікатором мовчки затер би чужу знижку.
+    return d.collection('promocodes').doc(code).get().then(function (snap) {
+      if (snap.exists) {
+        code = makePromoCode(opts.name);          // одна повторна спроба
+      }
+      return d.collection('promocodes').doc(code).set(payload);
     }).then(function () {
-      // Позначаємо саме замовлення, щоб не видати другу знижку за те саме
-      d.collection('orders').doc(orderId).update({ personalPromo: code }).catch(function () {});
+      if (opts.orderId) {
+        d.collection('orders').doc(opts.orderId).update({ personalPromo: code }).catch(function () {});
+      }
+      log('shop', 'Видав персональну знижку ' + code + ' (' + pct + '%) на ' + phone);
       toast('Код ' + code + ' видано на ' + pct + '%');
-      log('shop', 'Видав персональну знижку ' + code + ' (' + pct + '%) клієнту ' + phone);
       alert('Код: ' + code + '\n\nЗнижка ' + pct + '% на ' + days + ' днів.\n' +
-            'Спрацює тільки з номером ' + (o.phone || o.customerPhone) + '.\n\n' +
+            'Спрацює тільки з номером ' + opts.phone + '.\n\n' +
             'Клієнт побачить його сам, написавши боту /promo.');
+      return code;
     }).catch(function (e) {
-      toast('Не вдалося: ' + (e.message || e.code), 'error');
+      if (e) toast('Не вдалося: ' + (e.message || e.code), 'error');
+      throw e;
     });
+  }
+
+  // Видача за телефоном — коли замовлення ще немає або воно давнє
+  function issuePromoByPhone() {
+    var phone = ((document.getElementById('mg-promo-phone') || {}).value || '').trim();
+    var name = ((document.getElementById('mg-promo-name') || {}).value || '').trim();
+    var pct = (document.getElementById('mg-promo-percent') || {}).value;
+    var days = (document.getElementById('mg-promo-days') || {}).value;
+
+    createPersonalPromo({ phone: phone, name: name, percent: pct, days: days })
+      .then(function () {
+        ['mg-promo-phone', 'mg-promo-name'].forEach(function (id) {
+          var el = document.getElementById(id); if (el) el.value = '';
+        });
+      })
+      .catch(function () {});
+  }
+
+  function issuePersonalPromo(orderId) {
+    var o = orders().filter(function (x) { return x.id === orderId; })[0];
+    if (!o) { toast('Замовлення не знайдено', 'error'); return; }
+
+    var pct = prompt('Знижка у відсотках для наступного замовлення:', '10');
+    if (pct === null) return;
+    var days = prompt('Скільки днів діятиме код?', '60');
+    if (days === null) return;
+
+    createPersonalPromo({
+      phone: o.phone || o.customerPhone,
+      name: o.name || o.customerName,
+      percent: pct,
+      days: days,
+      orderId: orderId,
+      note: 'Персональна знижка за замовлення ' + orderId
+    }).catch(function () {});
   }
 
   // ═══════════════ ІНІЦІАЛІЗАЦІЯ ═══════════════
@@ -743,6 +800,8 @@
     askNotifyPermission: askNotifyPermission,
     setPlanned: setPlanned,
     issuePersonalPromo: issuePersonalPromo,
+    issuePromoByPhone: issuePromoByPhone,
+    createPersonalPromo: createPersonalPromo,
     makePromoCode: makePromoCode,
     pendingReviews: pendingReviews,
     _manualItems: function () { return manualItems; }
