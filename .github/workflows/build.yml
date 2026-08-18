@@ -245,16 +245,24 @@ jobs:
         if: matrix.os == 'windows-latest'
         shell: bash
         run: |
+          # Повторюємо ЛИШЕ мережеві збої. Помилка в налаштуваннях
+          # (замалий розмір іконки, зіпсований package.json) від
+          # повтору не зникне — три спроби просто згають хвилину
+          # і сховають справжню причину під купою тексту.
           for i in 1 2 3; do
             echo "── спроба $i з 3 ──"
-            if npm run dist:win; then
+            if npm run dist:win 2>&1 | tee /tmp/build-$i.log; then
               echo "✅ готово з $i спроби"
               exit 0
             fi
-            echo "спроба $i не вдалась, чекаю 20 секунд"
+            if ! grep -qiE 'wsarecv|ECONNRESET|ETIMEDOUT|EAI_AGAIN|socket hang up|connection.*(closed|reset)|unexpected EOF|502 Bad Gateway|503' /tmp/build-$i.log; then
+              echo "::error::Збірка впала не через мережу — повтори не допоможуть. Причина вище."
+              exit 1
+            fi
+            echo "мережевий збій на спробі $i, чекаю 20 секунд"
             sleep 20
           done
-          echo "::error::Три спроби поспіль не вдались — це вже не випадковий обрив"
+          echo "::error::Три мережеві збої поспіль — схоже, проблема не разова"
           exit 1
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -263,16 +271,24 @@ jobs:
         if: matrix.os == 'macos-latest'
         shell: bash
         run: |
+          # Повторюємо ЛИШЕ мережеві збої. Помилка в налаштуваннях
+          # (замалий розмір іконки, зіпсований package.json) від
+          # повтору не зникне — три спроби просто згають хвилину
+          # і сховають справжню причину під купою тексту.
           for i in 1 2 3; do
             echo "── спроба $i з 3 ──"
-            if npm run dist:mac; then
+            if npm run dist:mac 2>&1 | tee /tmp/build-$i.log; then
               echo "✅ готово з $i спроби"
               exit 0
             fi
-            echo "спроба $i не вдалась, чекаю 20 секунд"
+            if ! grep -qiE 'wsarecv|ECONNRESET|ETIMEDOUT|EAI_AGAIN|socket hang up|connection.*(closed|reset)|unexpected EOF|502 Bad Gateway|503' /tmp/build-$i.log; then
+              echo "::error::Збірка впала не через мережу — повтори не допоможуть. Причина вище."
+              exit 1
+            fi
+            echo "мережевий збій на спробі $i, чекаю 20 секунд"
             sleep 20
           done
-          echo "::error::Три спроби поспіль не вдались — це вже не випадковий обрив"
+          echo "::error::Три мережеві збої поспіль — схоже, проблема не разова"
           exit 1
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
